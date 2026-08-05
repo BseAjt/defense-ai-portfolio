@@ -5,18 +5,18 @@ MVP local du Cognitive Operating System décrit dans le dossier `cognitive-os-`.
 ## Capacités
 
 - capture de mémoires structurées ;
-- timeline persistante SQLite ;
-- recherche lexicale pondérée ;
 - journal de décisions ;
-- signaux de réflexion ;
-- analyse d’idées avec ExecutiveOS ;
-- profils cognitifs configurables pour 15 agents ;
-- rechargement à chaud de l’équipe ;
 - Cognitive Graph persistant ;
+- synchronisation automatique mémoire/décision vers le graphe ;
+- recherche lexicale et recherche contextuelle ;
+- consolidation des données historiques ;
+- détection prudente de doublons ;
+- signaux de réflexion ;
+- ExecutiveOS avec 15 profils cognitifs configurables ;
 - interface web intégrée ;
 - aucune clé d’API requise.
 
-## Architecture — Sprints 1 à 3
+## Architecture — Sprints 1 à 4
 
 ```text
 app/
@@ -30,7 +30,8 @@ app/
 │   ├── api.py
 │   ├── config.py
 │   ├── database.py
-│   ├── graph.py             # nœuds, relations, voisinage, snapshot
+│   ├── graph.py
+│   ├── memory_engine.py
 │   ├── repositories.py
 │   ├── schemas.py
 │   └── services.py
@@ -39,20 +40,17 @@ app/
 └── test_app.py
 ```
 
-## Cognitive Graph
+### Memory Engine v0.5
 
-Types de nœuds :
+Toute mémoire ou décision créée par l’API est automatiquement transformée en nœud du Cognitive Graph. La table `cognitive_links` maintient une correspondance stable entre l’objet métier et son nœud cognitif.
 
-- `memory`, `idea`, `decision`, `goal`, `project`, `person` ;
-- `concept`, `document`, `conversation`, `event`.
+Le moteur permet également :
 
-Relations disponibles :
-
-- `supports`, `contradicts`, `derived_from`, `depends_on` ;
-- `created_by`, `mentions`, `belongs_to`, `validated_by` ;
-- `causes`, `references`, `duplicates`, `supersedes`.
-
-Chaque nœud et relation possède un niveau de confiance et des métadonnées JSON. La suppression d’un nœud supprime automatiquement ses relations.
+- le rattrapage des anciennes données avec une consolidation ;
+- la suppression cohérente d’une mémoire et de son nœud ;
+- la recherche d’une mémoire avec son voisinage cognitif ;
+- la création de relations `duplicates` lorsque la similarité est forte ;
+- l’observation de l’état du moteur.
 
 ## Lancement local
 
@@ -76,7 +74,45 @@ Documentation API : `http://127.0.0.1:8000/docs`.
 
 ## Configuration
 
-`MEMORYOS_DATA_DIR` choisit le répertoire de données. `MEMORYOS_AGENT_CONFIG` permet de charger une équipe ExecutiveOS alternative.
+### Données
+
+```bash
+export MEMORYOS_DATA_DIR=/chemin/vers/memoryos-data
+```
+
+Par défaut, la base est créée dans `app/data/memoryos.db`.
+
+### Équipe ExecutiveOS
+
+```bash
+export MEMORYOS_AGENT_CONFIG=/chemin/vers/mon-equipe.json
+```
+
+Rechargement sans redémarrage :
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/executive/agents/reload
+```
+
+## Memory Engine
+
+Consolider les mémoires et décisions existantes :
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/memory-engine/consolidate
+```
+
+Consulter l’état du moteur :
+
+```bash
+curl http://127.0.0.1:8000/api/memory-engine/status
+```
+
+Recherche contextuelle :
+
+```bash
+curl 'http://127.0.0.1:8000/api/memory-engine/context?q=strategie+produit'
+```
 
 ## Docker
 
@@ -97,10 +133,25 @@ pytest -q
 
 - `POST /api/memories`
 - `GET /api/memories`
+- `DELETE /api/memories/{id}`
 - `GET /api/search?q=...`
 - `POST /api/decisions`
 - `GET /api/decisions`
-- `GET /api/reflections`
+
+### Memory Engine
+
+- `GET /api/memory-engine/status`
+- `POST /api/memory-engine/consolidate`
+- `GET /api/memory-engine/context?q=...`
+
+### Cognitive Graph
+
+- `POST /api/graph/nodes`
+- `GET /api/graph/nodes`
+- `POST /api/graph/edges`
+- `GET /api/graph/edges`
+- `GET /api/graph/nodes/{id}/neighbors`
+- `GET /api/graph`
 
 ### ExecutiveOS
 
@@ -108,17 +159,6 @@ pytest -q
 - `POST /api/executive/agents/reload`
 - `POST /api/executive/analyze`
 
-### Cognitive Graph
+## Limites de la version 0.5.0
 
-- `POST /api/graph/nodes`
-- `GET /api/graph/nodes`
-- `GET /api/graph/nodes/{id}`
-- `DELETE /api/graph/nodes/{id}`
-- `POST /api/graph/edges`
-- `GET /api/graph/edges`
-- `GET /api/graph/nodes/{id}/neighbors`
-- `GET /api/graph`
-
-## Limites de cette version
-
-Les nœuds du graphe sont encore créés explicitement via l’API. Le prochain sprint pourra automatiser la transformation des mémoires et décisions en objets du graphe, puis ajouter consolidation, détection de similarités et réflexion multi-hop.
+La recherche reste lexicale et le moteur de doublons utilise une similarité de tokens. ExecutiveOS demeure déterministe. Les prochains sprints pourront ajouter un Reflection Engine enrichi, des embeddings optionnels, le chiffrement, l’authentification et les connecteurs externes.
