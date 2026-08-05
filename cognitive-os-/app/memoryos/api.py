@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from .graph import GraphRepository, GraphService
+from .memory_engine import CognitiveMemoryEngine
 from .repositories import DecisionRepository, MemoryRepository
 from .schemas import DecisionCreate, GraphEdgeCreate, GraphNodeCreate, IdeaRequest, MemoryCreate
 from .services import ExecutiveService, MemoryService, ReflectionService
@@ -15,6 +16,7 @@ decisions = DecisionRepository()
 graph = GraphRepository()
 graph_service = GraphService(graph)
 memory_service = MemoryService(memories)
+cognitive_memory = CognitiveMemoryEngine(memories, decisions, graph)
 reflection_service = ReflectionService(memories, decisions)
 executive_service = ExecutiveService()
 
@@ -26,7 +28,7 @@ def health() -> dict[str, str]:
 
 @router.post("/api/memories", status_code=201)
 def create_memory(payload: MemoryCreate) -> dict[str, Any]:
-    return memories.create(payload)
+    return cognitive_memory.create_memory(payload)
 
 
 @router.get("/api/memories")
@@ -42,15 +44,33 @@ def search_memories(
     return memory_service.search(q, limit)
 
 
+@router.get("/api/memory-engine/context")
+def contextual_search(
+    q: str = Query(min_length=2),
+    limit: int = Query(default=10, ge=1, le=50),
+) -> dict[str, Any]:
+    return cognitive_memory.contextual_search(q, limit)
+
+
+@router.get("/api/memory-engine/status")
+def memory_engine_status() -> dict[str, Any]:
+    return cognitive_memory.status()
+
+
+@router.post("/api/memory-engine/consolidate")
+def consolidate_memory() -> dict[str, Any]:
+    return cognitive_memory.consolidate()
+
+
 @router.delete("/api/memories/{memory_id}", status_code=204)
 def delete_memory(memory_id: int) -> None:
-    if not memories.delete(memory_id):
+    if not cognitive_memory.delete_memory(memory_id):
         raise HTTPException(status_code=404, detail="Memory not found")
 
 
 @router.post("/api/decisions", status_code=201)
 def create_decision(payload: DecisionCreate) -> dict[str, Any]:
-    return decisions.create(payload)
+    return cognitive_memory.create_decision(payload)
 
 
 @router.get("/api/decisions")
