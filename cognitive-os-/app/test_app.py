@@ -49,6 +49,7 @@ def test_executive_agents_have_cognitive_profiles() -> None:
             "/api/executive/analyze",
             json={"idea": "Créer une plateforme IA avec un modèle économique durable"},
         )
+        reloaded = client.post("/api/executive/agents/reload")
 
     assert agents.status_code == 200
     assert len(agents.json()) == 15
@@ -59,6 +60,10 @@ def test_executive_agents_have_cognitive_profiles() -> None:
     assert payload["agents"]
     assert payload["agent_configuration"].endswith("config/agents.json")
     assert all("blind_spots" in agent and "refuses" in agent for agent in payload["agents"])
+
+    assert reloaded.status_code == 200
+    assert reloaded.json()["status"] == "reloaded"
+    assert reloaded.json()["agents"] == 15
 
 
 def test_registry_loads_custom_configuration(tmp_path: Path) -> None:
@@ -109,3 +114,4 @@ def test_openapi_contains_stable_public_routes() -> None:
     assert "/api/decisions" in paths
     assert "/api/reflections" in paths
     assert "/api/executive/analyze" in paths
+    assert "/api/executive/agents/reload" in paths
