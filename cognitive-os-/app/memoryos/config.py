@@ -25,7 +25,7 @@ def load_settings() -> Settings:
     data_dir.mkdir(parents=True, exist_ok=True)
     return Settings(
         app_name="MemoryOS MVP",
-        version="0.3.0",
+        version="0.4.0",
         base_dir=base_dir,
         static_dir=base_dir / "static",
         data_dir=data_dir,
