@@ -3,8 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from agents import get_agents, select_agents
-
+from .agent_registry import AgentRegistry
 from .repositories import DecisionRepository, MemoryRepository, utc_now
 
 
@@ -81,11 +80,14 @@ class ReflectionService:
 
 
 class ExecutiveService:
+    def __init__(self, registry: AgentRegistry | None = None) -> None:
+        self.registry = registry or AgentRegistry.load()
+
     def agents(self) -> list[dict[str, Any]]:
-        return get_agents()
+        return self.registry.list()
 
     def analyze(self, idea: str) -> dict[str, Any]:
-        selected = select_agents(idea)
+        selected = self.registry.select(idea)
         analyses = [
             {
                 "name": agent["name"],
@@ -94,6 +96,7 @@ class ExecutiveService:
                 "mission": agent["mission"],
                 "mindset": agent["mindset"],
                 "questions": agent["questions"],
+                "refuses": agent["refuses"],
                 "blind_spots": agent["blind_spots"],
                 "style": agent["style"],
                 "analysis": agent["analysis"],
@@ -117,4 +120,5 @@ class ExecutiveService:
                 "Construire un test réalisable en sept jours",
             ],
             "confidence": 0.72,
+            "agent_configuration": str(self.registry.source_path),
         }
