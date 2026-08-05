@@ -86,6 +86,14 @@ class ExecutiveService:
     def agents(self) -> list[dict[str, Any]]:
         return self.registry.list()
 
+    def reload_agents(self) -> dict[str, Any]:
+        self.registry = AgentRegistry.load(self.registry.source_path)
+        return {
+            "status": "reloaded",
+            "agents": len(self.registry.agents),
+            "source": str(self.registry.source_path),
+        }
+
     def analyze(self, idea: str) -> dict[str, Any]:
         selected = self.registry.select(idea)
         analyses = [
