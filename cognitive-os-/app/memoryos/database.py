@@ -71,9 +71,18 @@ def initialize_database() -> None:
                 CHECK(source_id <> target_id)
             );
 
+            CREATE TABLE IF NOT EXISTS cognitive_links (
+                entity_type TEXT NOT NULL,
+                entity_id INTEGER NOT NULL,
+                graph_node_id INTEGER NOT NULL UNIQUE,
+                PRIMARY KEY(entity_type, entity_id),
+                FOREIGN KEY(graph_node_id) REFERENCES graph_nodes(id) ON DELETE CASCADE
+            );
+
             CREATE INDEX IF NOT EXISTS idx_graph_nodes_type ON graph_nodes(node_type);
             CREATE INDEX IF NOT EXISTS idx_graph_edges_source ON graph_edges(source_id);
             CREATE INDEX IF NOT EXISTS idx_graph_edges_target ON graph_edges(target_id);
             CREATE INDEX IF NOT EXISTS idx_graph_edges_relation ON graph_edges(relation_type);
+            CREATE INDEX IF NOT EXISTS idx_cognitive_links_node ON cognitive_links(graph_node_id);
             """
         )
