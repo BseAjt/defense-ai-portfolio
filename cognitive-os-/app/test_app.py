@@ -1,6 +1,11 @@
+import json
+from pathlib import Path
+
+import pytest
 from fastapi.testclient import TestClient
 
 from main import app
+from memoryos.agent_registry import AgentConfigurationError, AgentRegistry
 
 
 def test_health() -> None:
@@ -50,8 +55,49 @@ def test_executive_agents_have_cognitive_profiles() -> None:
     assert all(agent["mindset"] and agent["questions"] for agent in agents.json())
 
     assert analysis.status_code == 200
-    assert analysis.json()["agents"]
-    assert all("blind_spots" in agent for agent in analysis.json()["agents"])
+    payload = analysis.json()
+    assert payload["agents"]
+    assert payload["agent_configuration"].endswith("config/agents.json")
+    assert all("blind_spots" in agent and "refuses" in agent for agent in payload["agents"])
+
+
+def test_registry_loads_custom_configuration(tmp_path: Path) -> None:
+    custom_path = tmp_path / "agents.json"
+    custom_path.write_text(
+        json.dumps(
+            {
+                "default_agents": ["Test Agent"],
+                "agents": [
+                    {
+                        "name": "Test Agent",
+                        "inspiration": "Test",
+                        "role": "Tester",
+                        "mission": "Validate configuration loading.",
+                        "mindset": ["verify"],
+                        "questions": ["Does it load?"],
+                        "refuses": ["silent failure"],
+                        "blind_spots": ["test-only profile"],
+                        "style": "precise",
+                        "analysis": "Checks configuration behavior.",
+                        "keywords": ["custom"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    registry = AgentRegistry.load(custom_path)
+    assert [agent["name"] for agent in registry.list()] == ["Test Agent"]
+    assert [agent["name"] for agent in registry.select("custom subject")] == ["Test Agent"]
+
+
+def test_registry_rejects_invalid_configuration(tmp_path: Path) -> None:
+    invalid_path = tmp_path / "agents.json"
+    invalid_path.write_text('{"default_agents": [], "agents": [{"name": "Broken"}]}', encoding="utf-8")
+
+    with pytest.raises(AgentConfigurationError):
+        AgentRegistry.load(invalid_path)
 
 
 def test_openapi_contains_stable_public_routes() -> None:
