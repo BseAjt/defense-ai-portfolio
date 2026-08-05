@@ -13,14 +13,16 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from agents import analyze_with_agent, get_agents, select_agents
+
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "memoryos.db"
 STATIC_DIR = BASE_DIR / "static"
 
 app = FastAPI(
     title="MemoryOS MVP",
-    version="0.1.0",
-    description="Reference MVP for a local Cognitive Operating System.",
+    version="0.2.0",
+    description="Local Cognitive Operating System with mindset-driven ExecutiveOS agents.",
 )
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -112,9 +114,7 @@ def similarity(query: str, text: str) -> float:
     text_tokens = tokenize(text)
     if not query_tokens or not text_tokens:
         return 0.0
-    intersection = len(query_tokens & text_tokens)
-    union = len(query_tokens | text_tokens)
-    return intersection / union
+    return len(query_tokens & text_tokens) / len(query_tokens | text_tokens)
 
 
 @app.on_event("startup")
@@ -129,7 +129,7 @@ def home() -> FileResponse:
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "memoryos"}
+    return {"status": "ok", "service": "memoryos", "version": "0.2.0"}
 
 
 @app.post("/api/memories", status_code=201)
@@ -254,25 +254,34 @@ def reflections() -> dict[str, Any]:
     }
 
 
+@app.get("/api/executive/agents")
+def list_executive_agents() -> list[dict[str, Any]]:
+    """Return the complete cognitive profile of every ExecutiveOS agent."""
+    return get_agents()
+
+
 @app.post("/api/executive/analyze")
 def analyze_idea(payload: IdeaRequest) -> dict[str, Any]:
     idea = payload.idea.strip()
-    agents = [
-        ("Augustus", "Vision", "Clarifier l'ambition à cinq ans et le coût de l'inaction."),
-        ("Sun Tzu", "Stratégie", "Identifier le positionnement, les alternatives et l'avantage défendable."),
-        ("Jobs", "Produit", "Réduire l'idée à une expérience utilisateur simple et désirable."),
-        ("Buffett", "Finance", "Tester la création de valeur, les coûts et le risque de perte permanente."),
-        ("Portalis", "Juridique", "Vérifier les données, les droits, les engagements et la conformité."),
-        ("Turing", "Technologie", "Découper un MVP testable et isoler les inconnues techniques."),
-        ("Athena", "Cohérence", "Vérifier l'alignement avec les objectifs et contraintes du CEO."),
-    ]
+    selected = select_agents(idea)
+    analyses = [analyze_with_agent(agent, idea) for agent in selected]
+
+    tensions = []
+    selected_names = {agent["name"] for agent in selected}
+    if {"Jobs", "Buffett"}.issubset(selected_names):
+        tensions.append("Jobs pousse l'excellence produit tandis que Buffett exige une marge de sécurité financière.")
+    if {"Hormozi", "Portalis"}.issubset(selected_names):
+        tensions.append("Hormozi privilégie la vitesse de croissance ; Portalis protège la confiance et la conformité.")
+    if {"Turing", "Rams"}.issubset(selected_names):
+        tensions.append("Turing accepte la complexité interne ; Rams exige qu'elle disparaisse de l'expérience utilisateur.")
+
     return {
         "idea": idea,
-        "executive_summary": "L'idée mérite un test court avant tout investissement lourd. La priorité est de définir le problème, la cible et un signal de succès observable.",
-        "agents": [
-            {"name": name, "role": role, "analysis": guidance}
-            for name, role, guidance in agents
-        ],
+        "orchestrator": "ORION",
+        "executive_summary": "Le Board recommande de transformer l'idée en hypothèse testable, puis de confronter vision, désirabilité, faisabilité, risque et alignement personnel.",
+        "selected_agents": len(selected),
+        "agents": analyses,
+        "debate": tensions,
         "risks": [
             "Problème insuffisamment précis",
             "Complexité construite avant validation de l'usage",
@@ -285,5 +294,5 @@ def analyze_idea(payload: IdeaRequest) -> dict[str, Any]:
             "Choisir une métrique de validation",
             "Construire un test réalisable en sept jours",
         ],
-        "confidence": 0.72,
+        "confidence": 0.78,
     }
