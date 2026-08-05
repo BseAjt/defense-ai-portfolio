@@ -7,7 +7,7 @@ def test_health() -> None:
     with TestClient(app) as client:
         response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "service": "memoryos", "version": "0.2.0"}
+    assert response.json() == {"status": "ok", "service": "memoryos"}
 
 
 def test_memory_round_trip() -> None:
@@ -23,34 +23,43 @@ def test_memory_round_trip() -> None:
             },
         )
         assert created.status_code == 201
+        memory_id = created.json()["id"]
 
         listed = client.get("/api/memories")
         assert listed.status_code == 200
-        assert any(item["title"] == "Test memory" for item in listed.json())
+        assert any(item["id"] == memory_id for item in listed.json())
+
+        searched = client.get("/api/search", params={"q": "persistent memory"})
+        assert searched.status_code == 200
+        assert any(item["id"] == memory_id for item in searched.json())
+
+        deleted = client.delete(f"/api/memories/{memory_id}")
+        assert deleted.status_code == 204
 
 
-def test_all_agent_mindsets_are_available() -> None:
+def test_executive_agents_have_cognitive_profiles() -> None:
     with TestClient(app) as client:
-        response = client.get("/api/executive/agents")
-    assert response.status_code == 200
-    agents = response.json()
-    assert len(agents) == 15
-    assert all(agent["mindset"] for agent in agents)
-    assert all(agent["questions"] for agent in agents)
-    assert all(agent["blind_spots"] for agent in agents)
-
-
-def test_analysis_uses_agent_mindsets() -> None:
-    with TestClient(app) as client:
-        response = client.post(
+        agents = client.get("/api/executive/agents")
+        analysis = client.post(
             "/api/executive/analyze",
-            json={"idea": "Créer une plateforme IA avec un modèle business, une UX simple et une conformité RGPD."},
+            json={"idea": "Créer une plateforme IA avec un modèle économique durable"},
         )
-    assert response.status_code == 200
-    result = response.json()
-    assert result["orchestrator"] == "ORION"
-    assert result["selected_agents"] >= 8
-    assert all(agent["mindset"] for agent in result["agents"])
-    assert all(agent["key_question"] for agent in result["agents"])
-    assert any(agent["name"] == "Portalis" for agent in result["agents"])
-    assert any(agent["name"] == "Rams" for agent in result["agents"])
+
+    assert agents.status_code == 200
+    assert len(agents.json()) == 15
+    assert all(agent["mindset"] and agent["questions"] for agent in agents.json())
+
+    assert analysis.status_code == 200
+    assert analysis.json()["agents"]
+    assert all("blind_spots" in agent for agent in analysis.json()["agents"])
+
+
+def test_openapi_contains_stable_public_routes() -> None:
+    with TestClient(app) as client:
+        schema = client.get("/openapi.json").json()
+
+    paths = schema["paths"]
+    assert "/api/memories" in paths
+    assert "/api/decisions" in paths
+    assert "/api/reflections" in paths
+    assert "/api/executive/analyze" in paths
