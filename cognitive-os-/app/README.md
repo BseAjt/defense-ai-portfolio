@@ -45,7 +45,15 @@ http://127.0.0.1:8000/docs
 
 ```bash
 docker build -t memoryos-mvp .
-docker run --rm -p 8000:8000 -v memoryos-data:/app/data memoryos-mvp
+docker run --rm -p 8000:8000 memoryos-mvp
+```
+
+La base SQLite est créée dans le conteneur. Pour un déploiement durable, utilisez la configuration locale ou adaptez `DB_PATH` vers un volume persistant.
+
+## Tests
+
+```bash
+pytest -q
 ```
 
 ## Endpoints principaux
