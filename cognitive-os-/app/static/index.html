@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MemoryOS MVP</title>
+  <style>
+    :root { font-family: Inter, system-ui, sans-serif; color: #172033; background: #f4f7fb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header { background: #101828; color: white; padding: 28px; }
+    header h1 { margin: 0 0 6px; }
+    main { max-width: 1180px; margin: 0 auto; padding: 24px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; }
+    .card { background: white; border-radius: 14px; padding: 18px; box-shadow: 0 8px 30px rgba(16,24,40,.07); }
+    input, textarea, select, button { width: 100%; padding: 11px; margin-top: 8px; border-radius: 9px; border: 1px solid #cbd5e1; font: inherit; }
+    textarea { min-height: 110px; resize: vertical; }
+    button { border: 0; background: #2563eb; color: white; font-weight: 700; cursor: pointer; }
+    button.secondary { background: #344054; }
+    .item { border-top: 1px solid #e4e7ec; padding: 12px 0; }
+    .meta { color: #667085; font-size: .86rem; }
+    .pill { display: inline-block; background: #eff4ff; color: #3538cd; border-radius: 999px; padding: 3px 8px; margin: 3px; font-size: .8rem; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #f8fafc; padding: 12px; border-radius: 9px; }
+    .status { min-height: 24px; color: #067647; font-weight: 600; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>MemoryOS</h1>
+  <div>Capture, rappel, décision, réflexion et analyse ExecutiveOS.</div>
+</header>
+<main>
+  <div id="status" class="status"></div>
+  <section class="grid">
+    <article class="card">
+      <h2>Capturer une mémoire</h2>
+      <select id="kind">
+        <option value="idea">Idée</option><option value="fact">Fait</option>
+        <option value="learning">Apprentissage</option><option value="experience">Expérience</option>
+        <option value="goal">Objectif</option><option value="reflection">Réflexion</option>
+      </select>
+      <input id="title" placeholder="Titre" />
+      <textarea id="content" placeholder="Contenu"></textarea>
+      <input id="tags" placeholder="Tags séparés par des virgules" />
+      <button onclick="createMemory()">Enregistrer</button>
+    </article>
+
+    <article class="card">
+      <h2>J’ai une idée…</h2>
+      <textarea id="idea" placeholder="Décris ton idée"></textarea>
+      <button onclick="analyzeIdea()">Convoquer ExecutiveOS</button>
+      <div id="analysis"></div>
+    </article>
+
+    <article class="card">
+      <h2>Recherche</h2>
+      <input id="query" placeholder="Que veux-tu retrouver ?" />
+      <button onclick="searchMemories()">Rechercher</button>
+      <div id="searchResults"></div>
+    </article>
+
+    <article class="card">
+      <h2>Réflexion</h2>
+      <button class="secondary" onclick="loadReflections()">Analyser la mémoire</button>
+      <div id="reflections"></div>
+    </article>
+  </section>
+
+  <section class="card" style="margin-top:18px">
+    <h2>Timeline</h2>
+    <button class="secondary" onclick="loadMemories()">Actualiser</button>
+    <div id="timeline"></div>
+  </section>
+</main>
+<script>
+const statusBox = document.getElementById('status');
+const escapeHtml = value => String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+function status(message) { statusBox.textContent = message; setTimeout(() => statusBox.textContent = '', 3000); }
+async function api(path, options={}) {
+  const response = await fetch(path, {headers:{'Content-Type':'application/json'}, ...options});
+  if (!response.ok) throw new Error(await response.text());
+  return response.status === 204 ? null : response.json();
+}
+async function createMemory() {
+  try {
+    await api('/api/memories', {method:'POST', body:JSON.stringify({
+      kind: document.getElementById('kind').value,
+      title: document.getElementById('title').value,
+      content: document.getElementById('content').value,
+      tags: document.getElementById('tags').value.split(',').map(x=>x.trim()).filter(Boolean)
+    })});
+    status('Mémoire enregistrée.');
+    document.getElementById('title').value=''; document.getElementById('content').value='';
+    loadMemories();
+  } catch(e) { status('Erreur : ' + e.message); }
+}
+function renderMemories(items) {
+  return items.length ? items.map(x => `<div class="item"><strong>${escapeHtml(x.title)}</strong><div class="meta">${escapeHtml(x.kind)} · confiance ${x.confidence}</div><p>${escapeHtml(x.content)}</p>${(x.tags||[]).map(t=>`<span class="pill">${escapeHtml(t)}</span>`).join('')}</div>`).join('') : '<p>Aucun résultat.</p>';
+}
+async function loadMemories() { document.getElementById('timeline').innerHTML = renderMemories(await api('/api/memories')); }
+async function searchMemories() { const q = encodeURIComponent(document.getElementById('query').value); document.getElementById('searchResults').innerHTML = renderMemories(await api('/api/search?q='+q)); }
+async function loadReflections() { const data=await api('/api/reflections'); document.getElementById('reflections').innerHTML=`<pre>${escapeHtml(JSON.stringify(data,null,2))}</pre>`; }
+async function analyzeIdea() {
+  const data=await api('/api/executive/analyze',{method:'POST',body:JSON.stringify({idea:document.getElementById('idea').value})});
+  document.getElementById('analysis').innerHTML=`<h3>Recommandation</h3><p>${escapeHtml(data.recommendation)}</p><h3>Board</h3>${data.agents.map(a=>`<div class="item"><strong>${escapeHtml(a.name)} — ${escapeHtml(a.role)}</strong><p>${escapeHtml(a.analysis)}</p></div>`).join('')}<h3>Plan d'action</h3><ol>${data.action_plan.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ol>`;
+}
+loadMemories();
+</script>
+</body>
+</html>
