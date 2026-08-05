@@ -65,6 +65,11 @@ def list_agents() -> list[dict[str, Any]]:
     return executive_service.agents()
 
 
+@router.post("/api/executive/agents/reload")
+def reload_agents() -> dict[str, Any]:
+    return executive_service.reload_agents()
+
+
 @router.post("/api/executive/analyze")
 def analyze_idea(payload: IdeaRequest) -> dict[str, Any]:
     return executive_service.analyze(payload.idea.strip())
