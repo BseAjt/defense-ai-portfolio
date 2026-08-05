@@ -42,6 +42,64 @@ def test_memory_round_trip() -> None:
         assert deleted.status_code == 204
 
 
+def test_cognitive_graph_round_trip_and_cascade() -> None:
+    with TestClient(app) as client:
+        idea = client.post(
+            "/api/graph/nodes",
+            json={
+                "node_type": "idea",
+                "label": "MemoryOS",
+                "content": "A cognitive operating system",
+                "metadata": {"owner": "CEO"},
+                "confidence": 0.9,
+            },
+        )
+        project = client.post(
+            "/api/graph/nodes",
+            json={"node_type": "project", "label": "MVP", "metadata": {}},
+        )
+        assert idea.status_code == 201
+        assert project.status_code == 201
+        idea_id = idea.json()["id"]
+        project_id = project.json()["id"]
+
+        edge = client.post(
+            "/api/graph/edges",
+            json={
+                "source_id": idea_id,
+                "target_id": project_id,
+                "relation_type": "belongs_to",
+                "metadata": {"reason": "implementation"},
+                "confidence": 0.95,
+            },
+        )
+        assert edge.status_code == 201
+
+        neighbors = client.get(f"/api/graph/nodes/{idea_id}/neighbors")
+        assert neighbors.status_code == 200
+        assert neighbors.json()["neighbors"][0]["node"]["id"] == project_id
+
+        snapshot = client.get("/api/graph")
+        assert snapshot.status_code == 200
+        assert snapshot.json()["summary"]["node_count"] >= 2
+        assert snapshot.json()["summary"]["edge_count"] >= 1
+
+        deleted = client.delete(f"/api/graph/nodes/{idea_id}")
+        assert deleted.status_code == 204
+        remaining_edges = client.get("/api/graph/edges").json()
+        assert all(item["source_id"] != idea_id and item["target_id"] != idea_id for item in remaining_edges)
+        client.delete(f"/api/graph/nodes/{project_id}")
+
+
+def test_graph_rejects_unknown_nodes() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/graph/edges",
+            json={"source_id": 999999, "target_id": 999998, "relation_type": "supports"},
+        )
+    assert response.status_code == 422
+
+
 def test_executive_agents_have_cognitive_profiles() -> None:
     with TestClient(app) as client:
         agents = client.get("/api/executive/agents")
@@ -115,3 +173,6 @@ def test_openapi_contains_stable_public_routes() -> None:
     assert "/api/reflections" in paths
     assert "/api/executive/analyze" in paths
     assert "/api/executive/agents/reload" in paths
+    assert "/api/graph/nodes" in paths
+    assert "/api/graph/edges" in paths
+    assert "/api/graph" in paths
