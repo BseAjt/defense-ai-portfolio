@@ -12,23 +12,25 @@ MVP local du Cognitive Operating System décrit dans le dossier `cognitive-os-`.
 - analyse d’idées avec ExecutiveOS ;
 - profils cognitifs configurables pour 15 agents ;
 - rechargement à chaud de l’équipe ;
+- Cognitive Graph persistant ;
 - interface web intégrée ;
 - aucune clé d’API requise.
 
-## Architecture — Sprints 1 et 2
+## Architecture — Sprints 1 à 3
 
 ```text
 app/
 ├── main.py
 ├── config/
-│   ├── agents.json         # source de vérité du Board
+│   ├── agents.json
 │   └── README.md
 ├── memoryos/
-│   ├── agent_registry.py   # chargement, validation et sélection
+│   ├── agent_registry.py
 │   ├── app_factory.py
 │   ├── api.py
 │   ├── config.py
 │   ├── database.py
+│   ├── graph.py             # nœuds, relations, voisinage, snapshot
 │   ├── repositories.py
 │   ├── schemas.py
 │   └── services.py
@@ -37,7 +39,20 @@ app/
 └── test_app.py
 ```
 
-Les routes publiques restent stables. Les agents et leurs mindsets peuvent désormais évoluer indépendamment du code Python.
+## Cognitive Graph
+
+Types de nœuds :
+
+- `memory`, `idea`, `decision`, `goal`, `project`, `person` ;
+- `concept`, `document`, `conversation`, `event`.
+
+Relations disponibles :
+
+- `supports`, `contradicts`, `derived_from`, `depends_on` ;
+- `created_by`, `mentions`, `belongs_to`, `validated_by` ;
+- `causes`, `references`, `duplicates`, `supersedes`.
+
+Chaque nœud et relation possède un niveau de confiance et des métadonnées JSON. La suppression d’un nœud supprime automatiquement ses relations.
 
 ## Lancement local
 
@@ -61,29 +76,7 @@ Documentation API : `http://127.0.0.1:8000/docs`.
 
 ## Configuration
 
-### Données
-
-La variable `MEMORYOS_DATA_DIR` choisit le répertoire de données. Par défaut, la base est créée dans `app/data/memoryos.db`.
-
-```bash
-export MEMORYOS_DATA_DIR=/chemin/vers/memoryos-data
-```
-
-### Équipe ExecutiveOS
-
-Le Board est défini dans `config/agents.json`. Une équipe alternative peut être chargée avec :
-
-```bash
-export MEMORYOS_AGENT_CONFIG=/chemin/vers/mon-equipe.json
-```
-
-Après une modification, rechargez les profils sans redémarrer l’application :
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/executive/agents/reload
-```
-
-Le format complet est documenté dans `config/README.md`.
+`MEMORYOS_DATA_DIR` choisit le répertoire de données. `MEMORYOS_AGENT_CONFIG` permet de charger une équipe ExecutiveOS alternative.
 
 ## Docker
 
@@ -100,17 +93,32 @@ pytest -q
 
 ## Endpoints principaux
 
+### Mémoire et décisions
+
 - `POST /api/memories`
 - `GET /api/memories`
 - `GET /api/search?q=...`
 - `POST /api/decisions`
 - `GET /api/decisions`
 - `GET /api/reflections`
+
+### ExecutiveOS
+
 - `GET /api/executive/agents`
 - `POST /api/executive/agents/reload`
 - `POST /api/executive/analyze`
-- `GET /health`
+
+### Cognitive Graph
+
+- `POST /api/graph/nodes`
+- `GET /api/graph/nodes`
+- `GET /api/graph/nodes/{id}`
+- `DELETE /api/graph/nodes/{id}`
+- `POST /api/graph/edges`
+- `GET /api/graph/edges`
+- `GET /api/graph/nodes/{id}/neighbors`
+- `GET /api/graph`
 
 ## Limites de cette version
 
-La recherche reste locale et lexicale. ExecutiveOS utilise encore une orchestration déterministe. Le prochain sprint introduira le Cognitive Graph pour relier mémoires, décisions, personnes, projets et idées.
+Les nœuds du graphe sont encore créés explicitement via l’API. Le prochain sprint pourra automatiser la transformation des mémoires et décisions en objets du graphe, puis ajouter consolidation, détection de similarités et réflexion multi-hop.
